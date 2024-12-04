@@ -1,0 +1,18 @@
+version: 2
+
+sources:
+  - name: lab08
+    description: "Лаба08"
+    database: "{{ var('clickhouse_db') }}"
+    schema: lab08
+    tables:
+      - name: raw_browser_events
+        description: "Таблица данных браузера"
+      - name: raw_location_events
+        description: "Таблица данных о местоположении"
+      - name: raw_geo_events
+        description: "Таблица данных о геолокации"
+      - name: raw_device_events
+        description: "Таблица данных об устройствах"
+      - name: core_events_mv
+        description: "Мат вьюха очищенных данных"

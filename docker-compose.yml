@@ -1,0 +1,96 @@
+version: '3'
+services:
+  clickhouse-server:
+    image: clickhouse/clickhouse-server:24.10.1
+    container_name: clickhouse_lab08
+    ports:
+      - "19000:9000"
+      - "18123:8123"
+    environment:
+      - CLICKHOUSE_USER=${CLICKHOUSE_USER}
+      - CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD}
+    volumes:
+      - /home/ubuntu/labs/lab08/clickhouse:${CLICKHOUSE_DIR}
+    networks:
+      - lab08_network
+      
+  postgres:
+    image: "postgres:16.3"
+    container_name: "postgres_lab08"
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./airflow/data/postgres:${POSTGRES_DIR}
+
+  airflow-initdb:
+    image: "andart000/de15lab06:latest"
+    container_name: "airflow-initdb_lab08"
+    depends_on:
+      - postgres
+    entrypoint: airflow db migrate && airflow connections create-default-connections
+
+  airflow-webserver:
+    image: "andart000/de15lab06:latest"
+    container_name: "airflow-webserver_lab08"
+    restart: always
+    depends_on:
+      - postgres
+      - airflow-initdb
+    volumes:
+      - ./airflow/dags:${AIRFLOW_DAGS_DIR}
+      - ./airflow/utils/:${AIRFLOW_UTILS_DIR}
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - AIRFLOW__WEBSERVER__SECRET_KEY=${AIRFLOW_WEBSERVER_KEY}
+      - CLICKHOUSE_USER=${CLICKHOUSE_USER}
+      - CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD}
+      - CLICKHOUSE_DATABASE=${CLICKHOUSE_DATABASE}
+    ports:
+      - "8080:8080"
+    entrypoint: airflow webserver
+
+  airflow-scheduler:
+    image: "andart000/de15lab06:latest"
+    container_name: "airflow-scheduler_lab08"
+    restart: always
+    depends_on:
+      - postgres
+      - airflow-initdb
+    volumes:
+      - ./airflow/dags:${AIRFLOW_DAGS_DIR}
+      - ./tmp:${UNZIP_FILES_PATH}
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - AIRFLOW__WEBSERVER__SECRET_KEY=${AIRFLOW_WEBSERVER_KEY}
+      - AIRFLOW_VAR_BUCKET_URL=${BUCKET_URL}
+      - AIRFLOW_VAR_LOCAL_STORAGE_PATH=${LOCAL_STORAGE_PATH}
+      - AIRFLOW_VAR_UNZIP_FILES_PATH=${UNZIP_FILES_PATH}
+      - AIRFLOW_VAR_CLICKHOUSE_HOST=${CLICKHOUSE_HOST}
+      - AIRFLOW_VAR_CLICKHOUSE_PORT=${CLICKHOUSE_PORT}
+      - AIRFLOW_VAR_CLICKHOUSE_USER=${CLICKHOUSE_USER}
+      - AIRFLOW_VAR_CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD}
+      - AIRFLOW_VAR_CLICKHOUSE_DATABASE=${CLICKHOUSE_DATABASE}
+    entrypoint: airflow scheduler
+
+  dbt:
+    image: "andart000/de15lab06:latest"
+    container_name: "dbt_lab08"
+    depends_on:
+      - clickhouse-server
+    environment:
+      - CLICKHOUSE_USER=${CLICKHOUSE_USER}
+      - CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD}
+      - CLICKHOUSE_DATABASE=${CLICKHOUSE_DATABASE}
+    volumes:
+      - ./dbt_lab08:/dbt_lab08
+    networks:
+      - lab08_network
+    entrypoint: dbt run
+
+networks:
+  lab08_network:
+    driver: bridge
